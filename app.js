@@ -1,17 +1,20 @@
+require("dotenv").config();
+
 var express     = require("express");
 var app         = express();
 var mongoose    = require("mongoose");
 var bodyParser  = require("body-parser");
 const bcrypt    = require("bcrypt");
+const jwt       = require("jsonwebtoken");
 
 app.use(bodyParser.json());
+app.use(express.json());
 mongoose.connect('mongodb://localhost:27017/askit', {useNewUrlParser: true});
 
 var questionsSchema = new mongoose.Schema({
     text: String,
-    userId : Number,
+    userId : String,
     dateOfCreation : String,
-    timeOfCreation: String,
     likes: [Number],
     answers: [
         {
@@ -28,19 +31,26 @@ var usersSchema = new mongoose.Schema({
 
 var answersShchema = new mongoose.Schema({
     text: String,
-    userId : Number,
+    userId : String,
 })
 
 var Question  = mongoose.model("Question", questionsSchema);
 var User      = mongoose.model("User", usersSchema);
 var Answer    = mongoose.model("Answer", answersShchema);
 
-app.post("/questions", function(req, res) {
-    console.log(req);
+app.post("/questions", authenticateToken, function(req, res) {
+    console.log(req.body);
     Question.create({
         text: req.body.text,
-        userId: req.body.userId,
+        userId: req.body.userIdFromAuth,
         dateOfCreation: Date.now()
+    }, (error, createdUser) => {
+        if (error) {
+            res.status(500).send();
+        } else {
+            console.log(`question user id: ${req.body.userId}`);
+            res.status(201).send(createdUser);
+        }
     });
 });
 
@@ -107,23 +117,43 @@ app.post("/users/register", async function(req,res) {
     });
 });
 
-app.post("/users/login", async function(req,res){
-    var user = User.findOne({ username: req.body.username }, async function(err, user){
+app.post("/users/login", async function(req, res) {
+    var user = User.findOne({ username: req.body.username }, async function(err, user) {
         if(user == null) {
             res.send("cannot find");
         }
         try {
             if (await bcrypt.compare(req.body.password, user.password)) {
-                res.send("Sucess");
+                var accesToken = jwt.sign({ 
+                    username: user.username,
+                    userId: user.id
+                }, process.env.ACCES_TOKEN_SECRET);
+                res.send(accesToken);
             }
             else {
                 res.send("not succes");
             }
         } catch (e) {
-            res.status(500).send();
+            console.log(e);
+            res.status(500).send(e);
         }
+        
      });
 });
+
+function authenticateToken(req, res, next) {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    if (token == null) return res.sendStatus(401);
+
+    jwt.verify(token, process.env.ACCES_TOKEN_SECRET, (err, user) => {
+        if (err) return res.sendStatus(403);
+        
+        req.body.userIdFromAuth = user.userId;
+        console.log(req);
+        next();
+    });
+}
 
 
 
