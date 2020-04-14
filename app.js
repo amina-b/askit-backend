@@ -7,16 +7,17 @@ var bodyParser  = require("body-parser");
 const bcrypt    = require("bcrypt");
 const jwt       = require("jsonwebtoken");
 const { check, validationResult } = require("express-validator");
+const cors      = require('cors');
 
+app.use(cors());
 app.use(bodyParser.json());
 app.use(express.json());
 mongoose.connect('mongodb://localhost:27017/askit', {useNewUrlParser: true});
 
 var questionsSchema = new mongoose.Schema({
     text: String,
-    userId : String,
+    userId: mongoose.ObjectId,
     dateOfCreation : String,
-    likes: [Number],
 });
 
 var usersSchema = new mongoose.Schema({
@@ -26,19 +27,19 @@ var usersSchema = new mongoose.Schema({
 
 var answersShchema = new mongoose.Schema({
     text: String,
-    userId: String,
-    questionId: String
+    userId: mongoose.ObjectId,
+    questionId: mongoose.ObjectId
 })
 
 var likesQuestionSchema = new mongoose.Schema({
-    questionId : String,
-    userId : String,
+    questionId : mongoose.ObjectId,
+    userId : mongoose.ObjectId,
     state : Number
 });
 
 var likesAnswerSchema = new mongoose.Schema({
-    answerId : String,
-    userId : String,
+    answerId : mongoose.ObjectId,
+    userId : mongoose.ObjectId,
     state : Number
 });
 
@@ -107,7 +108,7 @@ app.get("/questions/:id/answers", function(req,res) {
     });
 });
 
-app.post("/users/register", checkMailAndPass, async function(req,res) {
+app.post("/users/register", checkIfSameUserExists, checkMailAndPass, async function(req,res) {
     const hashedPassword = await bcrypt.hash(req.body.password, 10);
     var user = { firstname : req.body.firstname,
                  secondname : req.body.secondname,
@@ -119,11 +120,11 @@ app.post("/users/register", checkMailAndPass, async function(req,res) {
             res.status(500).send();
         } else {
             res.status(201).send(); // uspjesno kreiran
-        }
+        }   
     });
 });
 
-app.post("/users/login", checkIfSameUserExists, checkMailAndPass, async function(req, res) {
+app.post("/users/login", checkMailAndPass, async function(req, res) {
     var user = User.findOne({ username: req.body.username }, async function(err, user) {
         if (err) {
             return res.status(500).send();
@@ -182,16 +183,41 @@ app.put("/questions/:id/likes", authenticateToken, function(req, res) {
                 likesQuestion.create({
                     questionId : req.params.id,
                     userId : user_Id,
-                    state : req.body.status
+                    state : req.body.state
                 });
                 res.status(201).send();
             } else {
-                likeState.state = req.body.status;
+                likeState.state = req.body.state;
                 likeState.save();
                 res.status(202).send();
             }
         }
     });
+});
+
+app.get("/hot-questions", function(req, res) {
+    likesQuestion.aggregate([{ 
+        $group: { 
+            "_id": "$questionId", 
+            likes: { $sum: {$cond: [{$gt: ['$state', 0]}, 1, 0]}}, 
+            dislikes: { $sum: {$cond: [{$lt: ['$state', 0]}, 1, 0]}}
+            }
+        },
+        { $lookup: { from: "questions", localField: "_id", foreignField: "_id", as: "question_info" }}, 
+        { $sort: { "likes": -1 }}
+        ]).exec((err, results) => {
+        if (err) {
+            res.stats(500).send(); //not gound
+        } else {
+            console.log(results);
+            res.status(200).send(results.map(result => ({
+                questionId: result._id,
+                text: result.question_info[0].text,
+                likes: result.likes,
+                dislikes: result.dislikes
+            }))); //Ok
+        }
+    })
 });
 
 app.put("/answers/:id/likes", authenticateToken, function(req, res) {
@@ -204,16 +230,35 @@ app.put("/answers/:id/likes", authenticateToken, function(req, res) {
                 likesAnswer.create({
                     answerId : req.params.id,
                     userId : user_Id,
-                    state : req.body.status
+                    state : req.body.state
                 });
                 res.status(201).send();
             } else {
-                likeState.state = req.body.status;
+                likeState.state = req.body.state;
                 likeState.save();
                 res.status(202).send();
             }
         }
     });
+});
+
+app.get("/top-users", function(req, res) {
+    Answer.aggregate([
+        { $group: { _id: "$userId", numberOfAnswers: { $sum: 1 }}}, 
+        { $lookup: { from: "users", localField: "_id", foreignField: "_id", as: "user_info" }},
+        { $sort: { numberOfAnswers: -1 }},
+        { $limit: 20 }
+    ]).exec((err, results) => {
+        if (err) {
+            res.stats(500).send(); //not gound
+        } else {
+            res.status(200).send(results.map(result => ({
+                userId: result._id,
+                username: result.user_info[0].username,
+                numberOfAnswers: result.numberOfAnswers
+            }))); //Ok
+        }
+    })
 });
 
 
@@ -299,6 +344,6 @@ function checkLength(req, res, next) {
 
 
 
-app.listen(8080, function() {
+app.listen(3000, function() {
     console.log("ASK-IT has started");
 });
