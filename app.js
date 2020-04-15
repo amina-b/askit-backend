@@ -28,7 +28,7 @@ var usersSchema = new mongoose.Schema({
 var answersShchema = new mongoose.Schema({
     text: String,
     userId: mongoose.ObjectId,
-    questionId: mongoose.ObjectId
+    questionId:  mongoose.ObjectId
 })
 
 var likesQuestionSchema = new mongoose.Schema({
@@ -72,7 +72,7 @@ app.get("/questions", function(req, res) {
             } else {
                 res.status(200).send(questions); //Ok
             }
-        });  
+        }).sort({ dateOfCreation : -1 });  
     } else {
         Question.find({}, function(err, questions) {
             if (err) {
@@ -98,14 +98,25 @@ app.post("/questions/:id/answers", authenticateToken, checkLength, function(req,
     });
 });
 
-app.get("/questions/:id/answers", function(req,res) {
-    Question.findById(req.params.id).populate("answers").exec(function(err, question) {
+app.get("/questions/:id", function(req,res) {
+    Question.findById(req.params.id, function(err, question) {
         if (err) {
             res.status(500).send(); //nije nasao
         } else {
             res.status(200).send(question); //ok
         }
     });
+});
+
+app.get("/questions/:id/answers", function(req, res) {
+    var id = mongoose.Types.ObjectId(req.params.id);
+    Answer.find({ questionId: id }, function(err, answers) {
+        if (err) {
+            res.status(500).send();
+        } else {
+            res.status(200).send(answers);
+        }
+    })
 });
 
 app.post("/users/register", checkIfSameUserExists, checkMailAndPass, async function(req,res) {
@@ -220,7 +231,7 @@ app.get("/hot-questions", function(req, res) {
     })
 });
 
-app.put("/answers/:id/likes", authenticateToken, function(req, res) {
+app.put("/answers/:id/likes",  function(req, res) {
     var user_Id = req.body.userIdFromAuth;
     likesAnswer.findOne({ answerId : req.params.id, userId : user_Id}, function(err, likeState) {
         if (err) {
@@ -229,7 +240,7 @@ app.put("/answers/:id/likes", authenticateToken, function(req, res) {
             if (likeState == null) {
                 likesAnswer.create({
                     answerId : req.params.id,
-                    userId : user_Id,
+                    //userId : 
                     state : req.body.state
                 });
                 res.status(201).send();
