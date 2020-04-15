@@ -84,6 +84,16 @@ app.get("/questions", function(req, res) {
     }
 });
 
+app.get("/user-questions", authenticateToken, function(req, res) {
+    Question.find({ userId: req.body.userIdFromAuth}, function(err, questions) {
+        if (err) {
+            res.status(500).send();
+        } else {
+            res.status(200).send(questions);
+        }
+    })
+});
+
 app.post("/questions/:id/answers", authenticateToken, checkLength, function(req, res) {
     Answer.create({
         text: req.body.text,
