@@ -11,6 +11,8 @@ var answerRoutes    = require('./routes/answers'),
     authRoutes      = require("./routes/authenticate"),
     userRoutes      = require("./routes/users")
     
+var seedDB = require("./seedDB");
+
 app.use(cors());
 app.use(bodyParser.json());
 app.use(express.json());
@@ -21,6 +23,8 @@ app.use(questionRoutes);
 app.use(userRoutes);
 
 mongoose.connect('mongodb://localhost:27017/askit', {useNewUrlParser: true});
+
+seedDB();
 
 app.listen(3000, function() {
     console.log("ASK-IT has started");

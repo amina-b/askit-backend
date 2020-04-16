@@ -5,10 +5,14 @@ var express             = require("express"),
     Answer              = require("../models/answer"),
     likesQuestion       = require("../models/likesQuestion"),
     authenticateToken   = require("../middleware/authenticateToken"),
-    checkLength         = require("../middleware/ckeckLength");
+    { check, validationResult } = require("express-validator");
 
+router.post("/questions", authenticateToken, check("text").isLength({ min: 2, max : 1000 }), function(req, res) {
+    const errors = validationResult(req);
+    if(!errors.isEmpty()) {
+        return res.status(422).json({ errors: errors.array()} );
+    }
 
-router.post("/questions", authenticateToken, checkLength, function(req, res) {
     Question.create({
         text: req.body.text,
         userId: req.body.userIdFromAuth,
@@ -17,7 +21,6 @@ router.post("/questions", authenticateToken, checkLength, function(req, res) {
         if (error) {
             res.status(500).send();
         } else {
-            console.log(`question user id: ${req.body.userIdFromAuth}`);
             res.status(201).send(createdQuestion);
         }
     });
@@ -63,7 +66,12 @@ router.get("/user-questions", authenticateToken, function(req, res) {
     }
 });
 
-router.post("/questions/:id/answers", authenticateToken, checkLength, function(req, res) {
+router.post("/questions/:id/answers", authenticateToken, check("text").isLength({ min: 2, max : 1000 }), function(req, res) {
+    const errors = validationResult(req);
+    if(!errors.isEmpty()) {
+        return res.status(422).json({ errors: errors.array()} );
+    }
+
     Answer.create({
         text: req.body.text,
         userId: req.body.userIdFromAuth,
@@ -112,7 +120,6 @@ router.get("/hot-questions", function(req, res) {
         if (err) {
             res.stats(500).send(); 
         } else {
-            console.log(results);
             res.status(200).send(results.map(result => ({
                 questionId: result._id,
                 text: result.question_info[0].text,

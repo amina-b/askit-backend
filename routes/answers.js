@@ -3,11 +3,18 @@ var express             = require("express"),
     mongoose            = require("mongoose"),
     isAllowedToModify   = require("../middleware/isAllowedToModify"),
     authenticateToken   = require("../middleware/authenticateToken"),
-    checkLength         = require("../middleware/ckeckLength"),
     Answer              = require("../models/answer"),
-    likesAnswer         = require("../models/likesAnswer");
+    likesAnswer         = require("../models/likesAnswer"),
+    { check, validationResult } = require("express-validator");
 
-router.put("/answers/:id", authenticateToken, isAllowedToModify, checkLength, function(req, res) {
+router.put("/answers/:id", authenticateToken, isAllowedToModify,
+    check("text").isLength({ min: 2, max : 1000 }), function(req, res) {
+    
+    const errors = validationResult(req);
+    if(!errors.isEmpty()) {
+        return res.status(422).json({ errors: errors.array()} );
+    }
+
     Answer.findByIdAndUpdate(req.params.id, req.body, function(err, updatedAnswer) {
         if (err) {
             res.status(500).send(); 
@@ -18,7 +25,6 @@ router.put("/answers/:id", authenticateToken, isAllowedToModify, checkLength, fu
 });
 
 router.delete("/answers/:id", authenticateToken, isAllowedToModify,  function(req, res) {
-    console.log('bio sam tuuu');
     Answer.findByIdAndRemove(req.params.id, req.body, function(err) {
         if (err) {
             res.status(500).send(); 

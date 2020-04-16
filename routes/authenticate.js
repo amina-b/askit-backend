@@ -4,10 +4,19 @@ var express                 = require("express"),
     User                    = require("../models/user"),
     bcrypt                  = require("bcrypt"),
     jwt                     = require("jsonwebtoken"),
-    checkIfSameUserExists   = require("../middleware/checkIfSameUserExists"),
-    checkMailAndPass        = require("../middleware/ckeckMailAndPass");
+    checkIfSameUserExists   = require("../middleware/checkIfSameUserExists");
 
-router.post("/users/register", checkIfSameUserExists, checkMailAndPass, async function(req,res) {
+const { check, validationResult } = require("express-validator");
+
+router.post("/users/register", checkIfSameUserExists, [
+    check("username").isEmail(),
+    check("password").isLength( { min: 5 , max: 30 }),
+], async function(req,res) {
+    const errors = validationResult(req);
+    if(!errors.isEmpty()) {
+        return res.status(422).json({ errors: errors.array()} );
+    }
+
     const hashedPassword = await bcrypt.hash(req.body.password, 10);
     var user = { firstname : req.body.firstname,
                  secondname : req.body.secondname,
@@ -23,7 +32,15 @@ router.post("/users/register", checkIfSameUserExists, checkMailAndPass, async fu
     });
 });
 
-router.post("/users/login", checkMailAndPass, async function(req, res) {
+router.post("/users/login", [
+    check("username").isEmail(),
+    check("password").isLength( { min: 5 , max: 30 }),
+], async function(req, res) {
+    const errors = validationResult(req);
+    if(!errors.isEmpty()) {
+        return res.status(422).json({ errors: errors.array()} );
+    }
+
     var user = User.findOne({ username: req.body.username }, async function(err, user) {
         if (err) {
             return res.status(500).send();
